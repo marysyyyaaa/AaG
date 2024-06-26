@@ -3,6 +3,7 @@
 #include <string.h>
 
 double scalar_multiply(double* vector1, double* vector2, int n) {
+
     double result = 0;
     for (int i = 0; i < n; i++) {
         result += vector1[i] * vector2[i];
@@ -11,7 +12,7 @@ double scalar_multiply(double* vector1, double* vector2, int n) {
 }
 
 double* multiply_scalar_on_vector(double* vector, int n, double scalar) {
-    double* result;
+    double* result = (double*)malloc(n*sizeof(double));
     for (int i = 0; i < n; i++) {
         result[i] = vector[i] * scalar;
     }
@@ -22,6 +23,7 @@ void vector_minus_vector(double* vector1, double* vector2, int n) {
     for (int i = 0; i < n; i++) {
         vector1[i] -= vector2[i];
     }
+    free(vector2);
 }
 
 double* summand_for_GS(double* vector_f, double* vector_g, int n) {
@@ -32,7 +34,7 @@ double* summand_for_GS(double* vector_f, double* vector_g, int n) {
 
 void gramm_schmidt(double** Q, double** A, int n) {
     for (int i = 0; i < n; i++) {
-        memcpy(Q[i], A[i], n);
+        memcpy(Q[i], A[i], n * sizeof(double));
         for (int j = 0; j < i; j++) {
             vector_minus_vector(Q[i], summand_for_GS(A[i], Q[j], n), n);
         }
@@ -43,7 +45,7 @@ void write_matrix_to_file(double** A, int n, FILE* fout) {
     fprintf(fout, "%d %d\n", n, n);
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
-            fprintf(fout, "%f ", A[j][i]);
+            fprintf(fout, "%lf ", A[j][i]);
         }
         fprintf(fout, "\n");
     }
@@ -60,11 +62,32 @@ void find_R_matrix(double** R, double** Q, double** A, int n) {
     }
 }
 
-double count_determinant(double** a, int n) {
+void freeMatrix(double** A, int n) {
+    if (A != NULL) {
+        for (int i = 0; i< n; i++) {
+            if (A[i] != NULL) {
+                free(A[i]);
+            }
+        }
+        free(A);
+    }
+}
+
+double count_determinant(double** A, int n) {
+
+    double** a = (double**)malloc(n * sizeof(double*));
+    for (int i = 0; i < n; i++) {
+        a[i] = (double*)malloc(n * sizeof(double));
+        for (int j = 0; j < n; j++) {
+            a[i][j] = A[i][j];
+        }
+    }
+    
     double tmp, d;
     int znak = 1;
     
-    if(n == 1) { 
+    if(n == 1) {
+        freeMatrix(a, n);
         return a[0][0];
     } 
      
@@ -76,6 +99,7 @@ double count_determinant(double** a, int n) {
             } 
         } 
         if (flag == n){ 
+            freeMatrix(a, n);
             return 0; 
         } 
         flag = 0; 
@@ -106,9 +130,12 @@ double count_determinant(double** a, int n) {
         d *= a[i][i]; 
     } 
     if(d == 0){ 
+        
         return 0; 
     } 
     d *= znak; 
+
+    freeMatrix(a, n);
     return d;
 }
 
@@ -117,16 +144,19 @@ int main(int argc, char* argv[]) {
     char* input_file_name;
     char* output_file_name;
     
-    if (argc < 5) {
+    if (argc < 4) {
         printf("Неверное количество аргументов");
         return 0;
     }
     
-    for (int i = 1; i <= argc; i++) {
-        if (argv[i] == "-i") {
-            input_file_name = argv[i + 1];
-        } else if (argv[i] == "-o") {
-            output_file_name = argv[i + 1];
+    for (int i = 0; i < argc; i++) {
+        if (argv[i][0] == '-') {
+            if (argv[i][1] == 'i') {
+                input_file_name = argv[i + 1];
+            }
+            else if (argv[i][1] == 'o') {
+                output_file_name = argv[i + 1];
+            }
         }
     }
     
@@ -141,7 +171,7 @@ int main(int argc, char* argv[]) {
     int n;
     
     if (fscanf(input_file, "%d %d", &m, &n) == 0) {
-        printf("Неверные значения размерности матрицы");
+        printf("Неверные значения размерности матрицы ");
         return 0;
     }
     if (n <= 0 || m <= 0) {
@@ -154,14 +184,19 @@ int main(int argc, char* argv[]) {
     }
     
     double** A = (double**)malloc(n*sizeof(double*));
+    for (int i = 0; i < n; i++) {
+        A[i] = (double*)malloc(n * sizeof(double));
+    }
     
     for (int i = 0; i < n; i++) {
         for (int j = 0; j < n; j++) {
-            if (fscanf(input_file, "%lf ", &A[j][i]) == 0) {
+            if (fscanf(input_file, "%lf", &A[j][i]) == 0) {
                 printf("Входные данные содержат недопустимые значения или символы");
+                freeMatrix(A, n);
                 return 0;
             }
         }
+        printf("\n");
     }
     
     if (count_determinant(A, n) == 0) {
@@ -170,18 +205,27 @@ int main(int argc, char* argv[]) {
     }
     
     double** Q = (double**)malloc(n*sizeof(double*));
+    for (int i = 0; i < n; i++) {
+        Q[i] = (double*)malloc(n * sizeof(double));
+    }
+
     gramm_schmidt(Q, A, n);
     write_matrix_to_file(Q, n, output_file);
     
+    
     double** R = (double**)malloc(n*sizeof(double*));
+    for (int i = 0; i < n; i++) {
+        R[i] = (double*)malloc(n * sizeof(double));
+    }
+
     find_R_matrix(R, Q, A, n);
     write_matrix_to_file(R, n, output_file);
     
     fclose(input_file);
     fclose(output_file);
-    
-    free(A);
-    free(Q);
-    free(R);
+
+    freeMatrix(A, n);
+    freeMatrix(Q, n);
+    freeMatrix(R, n);
     return 0;
 }
